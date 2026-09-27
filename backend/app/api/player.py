@@ -16,6 +16,7 @@ from app.models.database import (
     VideoItem,
     WatchLog,
 )
+from app.services import curriculum
 
 router = APIRouter(prefix="/player", tags=["player"])
 
@@ -79,12 +80,8 @@ class WatchLogOut(BaseModel):
 
 @router.get("/{child_id}/today", response_model=TodayPlaylistOut)
 async def get_today_playlist(child_id: int, db: AsyncSession = Depends(get_db)) -> TodayPlaylistOut:
-    """Отдаёт дневной плейлист ребёнка на сегодня.
-
-    STUB (Этап 1): читает уже существующий DailyPlaylist, если он есть.
-    Автоматическая генерация плейлиста из CurriculumNode/VideoItem —
-    задача Этапа 4 (app/services/curriculum.py), сейчас там только заглушка.
-    """
+    """Отдаёт дневной плейлист ребёнка на сегодня, генерируя его через
+    curriculum engine (Этап 4), если он ещё не создан."""
     child = await db.get(ChildProfile, child_id)
     if child is None:
         raise HTTPException(status_code=404, detail="Child profile not found")
@@ -97,10 +94,10 @@ async def get_today_playlist(child_id: int, db: AsyncSession = Depends(get_db)) 
     playlist = result.scalars().first()
 
     if playlist is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Плейлист на сегодня ещё не сгенерирован (curriculum engine — Этап 4)",
-        )
+        try:
+            playlist = await curriculum.build_daily_playlist(db, child, date.today())
+        except curriculum.CurriculumError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return TodayPlaylistOut(
         child_id=playlist.child_id,

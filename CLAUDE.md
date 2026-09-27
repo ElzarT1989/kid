@@ -18,7 +18,7 @@ AI — система изоляции детей в киоск-режиме с 
 
 ## Текущий статус (см. SPEC.md, раздел 7)
 
-**Этапы 1–3 — реализованы.**
+**Этапы 1–4 — реализованы.**
 - Этап 1: backend-скелет, 8 таблиц БД, admin/player API, Telegram-бот
   (`/status`, `/add_channel`, `/list_channels`, `/block_video`).
 - Этап 2: `ingestor.py` (yt-dlp, локальное скачивание с faststart),
@@ -27,11 +27,14 @@ AI — система изоляции детей в киоск-режиме с 
   `VideoPlayer`, `QuizOverlay`), backend дополнен `video_url`/`audio_url`,
   `GET /player/videos/{id}/quizzes`, `POST /player/{child_id}/watch-log`,
   статик-раздачей `/media/*`.
+- Этап 4: `curriculum_data.py` (фиксированный план 12×4 темы на возраст)
+  + `curriculum.py` (`ensure_current_node`/`build_daily_playlist`) —
+  `GET /player/{child_id}/today` теперь сам генерирует плейлист вместо
+  404, если он ещё не создан на сегодня.
 
-**Этапы 0, 4, 5 — не начаты.** Следующий приоритет — Этап 0 (физическая
+**Этап 0, 5 — не начаты.** Следующий приоритет — Этап 0 (физическая
 изоляция: Fully Kiosk Browser + автозапуск PWA на устройствах) и/или
-Этап 4 (curriculum engine — сейчас `DailyPlaylist` создаётся только
-вручную, автогенерации по `CurriculumNode` ещё нет).
+расширение Telegram-бота под отчёты curriculum-прогресса (Этап 5).
 
 **Известное ограничение:** Starlette (используемая FastAPI 0.115.0) не
 поддерживает HTTP Range-запросы в `StaticFiles` — видео отдаются целиком

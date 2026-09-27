@@ -152,9 +152,14 @@ class DailyPlaylist(Base):
     status: Mapped[PlaylistStatusEnum] = mapped_column(
         Enum(PlaylistStatusEnum), default=PlaylistStatusEnum.PLANNED
     )
+    # Узел учебного плана, под который сгенерирован этот день — нужен
+    # curriculum.py, чтобы считать % успешности квизов за конкретную
+    # неделю/тему, а не за всё время (см. Этап 4).
+    curriculum_node_id: Mapped[int | None] = mapped_column(ForeignKey("curriculum_nodes.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     child: Mapped["ChildProfile"] = relationship(back_populates="daily_playlists")
+    curriculum_node: Mapped["CurriculumNode | None"] = relationship()
     items: Mapped[list["DailyPlaylistItem"]] = relationship(
         back_populates="playlist", order_by="DailyPlaylistItem.order_index"
     )
