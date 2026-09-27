@@ -11,5 +11,8 @@ COPY . .
 
 EXPOSE 8000
 
-# Порт фиксирован (не $PORT) — Railway-домен должен указывать targetPort=8000.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell-форма (без []) — Docker сам оборачивает в /bin/sh -c и разворачивает
+# $PORT в рантайме контейнера. Явно задаём PORT=8000 переменной окружения
+# сервиса на Railway (см. CLAUDE.md) — если Railway ожидает PORT, он найдёт
+# то же значение, что и в domain targetPort и в EXPOSE.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

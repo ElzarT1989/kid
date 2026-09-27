@@ -15,8 +15,16 @@ export default function Login() {
     try {
       await login(password)
       navigate('/', { replace: true })
-    } catch {
-      setError('Неверный пароль')
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('401')) {
+        setError('Неверный пароль')
+      } else if (err instanceof Error && err.message.startsWith('500')) {
+        setError('Пароль ещё не настроен на сервере (ADMIN_DASHBOARD_PASSWORD)')
+      } else {
+        // Сетевая ошибка (backend недоступен/разворачивается) — не путать
+        // с неверным паролем, иначе не отличить одно от другого.
+        setError('Не удалось подключиться к серверу. Backend недоступен — попробуйте позже.')
+      }
     } finally {
       setLoading(false)
     }
