@@ -1,13 +1,15 @@
+import logging
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.auth import require_parent_auth
-from app.database import get_db
+from app.config import settings
+from app.database import async_session_maker, get_db
 from app.models.database import (
     ChannelSource,
     ChildProfile,
@@ -25,12 +27,16 @@ from app.schemas.admin import (
     ChildStatsOut,
     CurrentTopicOut,
     DailyStatOut,
+    IngestRunOut,
+    SystemStatusOut,
     VideoModerationPatch,
     VideoSummaryOut,
     WatchHistoryItemOut,
 )
+from app.services import ingestor
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+logger = logging.getLogger(__name__)
 
 STATS_DEFAULT_DAYS = 7
 
@@ -297,3 +303,75 @@ async def moderate_video(
         duration_sec=video.duration_sec,
         channel_name=video.channel.channel_name if video.channel else None,
     )
+
+
+@router.get(
+    "/system-status", response_model=SystemStatusOut, dependencies=[Depends(require_parent_auth)]
+)
+async def get_system_status(db: AsyncSession = Depends(get_db)) -> SystemStatusOut:
+    children_count = (await db.execute(select(func.count(ChildProfile.id)))).scalar_one()
+    channels_count = (await db.execute(select(func.count(ChannelSource.id)))).scalar_one()
+    active_channels_count = (
+        await db.execute(
+            select(func.count(ChannelSource.id)).where(ChannelSource.is_active.is_(True))
+        )
+    ).scalar_one()
+    videos_total_count = (await db.execute(select(func.count(VideoItem.id)))).scalar_one()
+    videos_approved_count = (
+        await db.execute(select(func.count(VideoItem.id)).where(VideoItem.is_approved.is_(True)))
+    ).scalar_one()
+
+    return SystemStatusOut(
+        gemini_configured=bool(settings.gemini_api_key),
+        telegram_configured=bool(settings.telegram_bot_token),
+        children_count=children_count,
+        active_channels_count=active_channels_count,
+        channels_count=channels_count,
+        videos_total_count=videos_total_count,
+        videos_approved_count=videos_approved_count,
+        videos_rejected_count=videos_total_count - videos_approved_count,
+    )
+
+
+async def _run_ingestion_background() -> None:
+    async with async_session_maker() as db:
+        try:
+            stats = await ingestor.run_ingestion_cycle(db)
+            logger.info("Фоновый цикл ингестии завершён: %s", stats)
+        except Exception:
+            logger.exception("Фоновый цикл ингестии упал с ошибкой")
+
+
+@router.post(
+    "/ingest/run", response_model=IngestRunOut, dependencies=[Depends(require_parent_auth)]
+)
+async def run_ingest(
+    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)
+) -> IngestRunOut:
+    """Запускает обход белого списка каналов (yt-dlp -> модерация) в фоне.
+
+    Без этого эндпоинта единственный способ наполнить систему видео —
+    вручную запускать ingestor.py из кода; теперь родитель может
+    нажать кнопку в панели. Работает в фоне (BackgroundTasks), так как
+    скачивание видео и вызовы Gemini могут занимать минуты — ответ
+    возвращается сразу, результат появится на вкладке «Видео» позже.
+    """
+    active_channels_count = (
+        await db.execute(
+            select(func.count(ChannelSource.id)).where(ChannelSource.is_active.is_(True))
+        )
+    ).scalar_one()
+
+    if active_channels_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Нет активных каналов в белом списке — сначала добавьте канал.",
+        )
+    if not settings.gemini_api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="GEMINI_API_KEY не настроен на сервере — модерация видео невозможна.",
+        )
+
+    background_tasks.add_task(_run_ingestion_background)
+    return IngestRunOut(status="started", channels_count=active_channels_count)

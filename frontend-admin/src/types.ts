@@ -68,3 +68,19 @@ export interface VideoSummary {
   duration_sec: number
   channel_name: string | null
 }
+
+export interface SystemStatus {
+  gemini_configured: boolean
+  telegram_configured: boolean
+  children_count: number
+  active_channels_count: number
+  channels_count: number
+  videos_total_count: number
+  videos_approved_count: number
+  videos_rejected_count: number
+}
+
+export interface IngestRunResult {
+  status: string
+  channels_count: number
+}

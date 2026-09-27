@@ -2,7 +2,9 @@ import type {
   ChannelSource,
   ChildProfile,
   ChildStats,
+  IngestRunResult,
   Platform,
+  SystemStatus,
   VideoSummary,
   WatchHistoryItem,
 } from '../types'
@@ -136,4 +138,12 @@ export function moderateVideo(
     method: 'PATCH',
     body: JSON.stringify(payload),
   })
+}
+
+export function getSystemStatus(): Promise<SystemStatus> {
+  return request<SystemStatus>('/admin/system-status')
+}
+
+export function runIngestion(): Promise<IngestRunResult> {
+  return request<IngestRunResult>('/admin/ingest/run', { method: 'POST' })
 }

@@ -1,21 +1,24 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { createChild, getChildren, getChildStats } from '../api/client'
+import { createChild, getChildren, getChildStats, getSystemStatus } from '../api/client'
 import StatTile from '../components/StatTile'
-import type { ChildProfile, ChildStats } from '../types'
+import SystemStatusPanel from '../components/SystemStatusPanel'
+import type { ChildProfile, ChildStats, SystemStatus } from '../types'
 
 export default function Dashboard() {
   const [children, setChildren] = useState<ChildProfile[]>([])
   const [stats, setStats] = useState<Record<number, ChildStats>>({})
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
 
   const loadAll = () => {
     setLoading(true)
-    getChildren()
-      .then(async (list) => {
+    Promise.all([getChildren(), getSystemStatus()])
+      .then(async ([list, status]) => {
         setChildren(list)
+        setSystemStatus(status)
         const entries = await Promise.all(
           list.map(async (child) => [child.id, await getChildStats(child.id)] as const),
         )
@@ -25,6 +28,10 @@ export default function Dashboard() {
       .finally(() => setLoading(false))
   }
 
+  const refreshSystemStatus = () => {
+    getSystemStatus().then(setSystemStatus).catch(() => {})
+  }
+
   useEffect(loadAll, [])
 
   if (loading) return <p style={{ color: 'var(--text-secondary)' }}>Загрузка…</p>
@@ -32,6 +39,8 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
+      {systemStatus && <SystemStatusPanel status={systemStatus} onIngestStarted={refreshSystemStatus} />}
+
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Профили</h1>
         <button

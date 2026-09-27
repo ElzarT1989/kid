@@ -103,3 +103,19 @@ class VideoSummaryOut(BaseModel):
 class VideoModerationPatch(BaseModel):
     is_approved: bool
     rejection_reason: str | None = None
+
+
+class SystemStatusOut(BaseModel):
+    gemini_configured: bool
+    telegram_configured: bool
+    children_count: int
+    active_channels_count: int
+    channels_count: int
+    videos_total_count: int
+    videos_approved_count: int
+    videos_rejected_count: int
+
+
+class IngestRunOut(BaseModel):
+    status: str
+    channels_count: int
