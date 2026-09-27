@@ -217,7 +217,22 @@ kid/
 │       └── bot/                  # Telegram-бот (aiogram 3.x)
 │           ├── main.py
 │           └── handlers.py
-└── frontend/                     # React PWA (Этап 3, не начат)
+└── frontend/                     # React PWA (Этап 3)
+    ├── Dockerfile                 # multi-stage build + nginx (SPA try_files)
+    ├── nginx.conf
+    ├── vite.config.ts             # @tailwindcss/vite + vite-plugin-pwa
+    ├── index.html
+    └── src/
+        ├── App.tsx                 # react-router: ProfileSelect / ChildPlayer
+        ├── main.tsx
+        ├── types.ts
+        ├── api/client.ts           # fetch-обёртки над admin/player API
+        ├── components/
+        │   ├── VideoPlayer.tsx     # HTML5 <video> + overlay + tap-to-start
+        │   └── QuizOverlay.tsx     # TTS-озвучка, карточки без штрафов
+        └── pages/
+            ├── ProfileSelect.tsx
+            └── ChildPlayer.tsx     # видео → квиз(ы) → watch-log → следующий
 ```
 
 ## 7. Пошаговый план разработки (Roadmap)
@@ -237,16 +252,33 @@ Fully Kiosk Browser + минимальный статический плейли
 4. Рабочие команды Telegram-бота: `/status`, `/add_channel`,
    `/list_channels`, `/block_video`.
 
-**Этап 2 — Контент-пайплайн и ИИ-модерация** — не начат
+**Этап 2 — Контент-пайплайн и ИИ-модерация** — ✅ реализовано
 1. `app/services/ingestor.py`: интеграция yt-dlp, локальное скачивание
-   одобренных видео.
+   одобренных видео (с `movflags=faststart`, см. Этап 3).
 2. `app/services/moderator.py`: Gemini API со строгим выходом
    (`VideoModerationResultSchema`) + визуальный слой (ffmpeg + vision).
 3. `app/services/tts.py`: генерация .mp3 файлов вопросов через edge-tts.
 
-**Этап 3 — Детский Киоск-плеер (Frontend)** — не начат
-1. React + Vite + TailwindCSS PWA.
-2. `ProfileSelect.tsx`, `VideoPlayer.tsx`, `QuizOverlay.tsx`.
+**Этап 3 — Детский Киоск-плеер (Frontend)** — ✅ реализовано
+1. React 19 + Vite + Tailwind v4 PWA (`frontend/`).
+2. `ProfileSelect.tsx` (огромные тач-аватары), `VideoPlayer.tsx`
+   (HTML5 `<video>` на локальный файл вместо YouTube IFrame — см. п. 8.1;
+   прозрачный оверлей + tap-to-start fallback при заблокированном
+   автоплее), `QuizOverlay.tsx` (авто-TTS, крупные карточки, подсветка
+   верного варианта без штрафа за ошибку), `ChildPlayer.tsx` (полный
+   цикл видео → квиз(ы) → `POST /player/{id}/watch-log` → следующий
+   ролик).
+3. Backend дополнен под нужды плеера: `video_url`/`audio_url` вместо
+   сырых путей, `GET /player/videos/{id}/quizzes`,
+   `POST /player/{child_id}/watch-log`, статик-раздача `/media/videos` и
+   `/media/tts`.
+
+   При E2E-проверке (Playwright) найдены и исправлены два реальных
+   бага: (1) `get_today_playlist` падал с `MissingGreenlet` из-за
+   ленивой загрузки `item.video` без `selectinload` в асинхронной
+   сессии; (2) видео, скачанные `ingestor.download_video_file` без
+   `movflags=faststart`, не проигрывались браузером прогрессивно (moov
+   atom в конце файла) — добавлен `postprocessor_args` в yt-dlp.
 
 **Этап 4 — Генератор учебного плана и логика адаптации** — не начат
 1. `curriculum.py`: формирование темы недели, построение

@@ -18,14 +18,27 @@ AI — система изоляции детей в киоск-режиме с 
 
 ## Текущий статус (см. SPEC.md, раздел 7)
 
-**Этап 1 (Инфраструктура и ядро БД) — реализован.** Backend-скелет в
-`backend/`: 8 таблиц БД, admin/player API, рабочий Telegram-бот
-(`/status`, `/add_channel`, `/list_channels`, `/block_video`), заглушки
-сервисов Этапов 2–4.
+**Этапы 1–3 — реализованы.**
+- Этап 1: backend-скелет, 8 таблиц БД, admin/player API, Telegram-бот
+  (`/status`, `/add_channel`, `/list_channels`, `/block_video`).
+- Этап 2: `ingestor.py` (yt-dlp, локальное скачивание с faststart),
+  `moderator.py` (Gemini, текст+визуальный слой), `tts.py` (edge-tts).
+- Этап 3: `frontend/` — React PWA-плеер (`ProfileSelect`, `ChildPlayer`,
+  `VideoPlayer`, `QuizOverlay`), backend дополнен `video_url`/`audio_url`,
+  `GET /player/videos/{id}/quizzes`, `POST /player/{child_id}/watch-log`,
+  статик-раздачей `/media/*`.
 
-**Этапы 0, 2, 3, 4, 5 — не начаты.** Следующий приоритет — Этап 0
-(физическая изоляция: Fully Kiosk Browser + минимальный статический
-плейлист) параллельно с Этапом 2 (ingestor + moderator + tts).
+**Этапы 0, 4, 5 — не начаты.** Следующий приоритет — Этап 0 (физическая
+изоляция: Fully Kiosk Browser + автозапуск PWA на устройствах) и/или
+Этап 4 (curriculum engine — сейчас `DailyPlaylist` создаётся только
+вручную, автогенерации по `CurriculumNode` ещё нет).
+
+**Известное ограничение:** Starlette (используемая FastAPI 0.115.0) не
+поддерживает HTTP Range-запросы в `StaticFiles` — видео отдаются целиком
+за один GET без возможности докачки/перемотки на уровне HTTP. Для
+коротких роликов (минуты) это не проблема; при необходимости настоящего
+progressive streaming для длинных видео потребуется either обновление
+Starlette, либо кастомный ranged FileResponse.
 
 ## Инфраструктура — Railway
 

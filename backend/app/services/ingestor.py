@@ -147,6 +147,11 @@ def _download_video_file_sync(platform: PlatformEnum, external_id: str, dest_dir
         "outtmpl": outtmpl,
         "format": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
         "merge_output_format": "mp4",
+        # moov-atom должен стоять перед mdat, иначе HTML5 <video> в браузере
+        # (в т.ч. Android WebView в киоск-режиме) не может прогрессивно
+        # воспроизвести файл, отдаваемый обычным GET без Range-поддержки —
+        # найдено при E2E-проверке VideoPlayer.tsx на Этапе 3.
+        "postprocessor_args": {"default": ["-movflags", "+faststart"]},
         "quiet": True,
         "no_warnings": True,
     }

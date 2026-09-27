@@ -50,6 +50,17 @@ services:
       - video_storage:/app/storage/videos
       - tts_cache:/app/storage/tts_cache
 
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
 volumes:
   postgres_data:
   video_storage:
