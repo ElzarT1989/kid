@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kidsedu
+      POSTGRES_PASSWORD: kidsedu
+      POSTGRES_DB: kidsedu
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kidsedu"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kidsedu:kidsedu@postgres:5432/kidsedu
+    ports:
+      - "8000:8000"
+    volumes:
+      - video_storage:/app/storage/videos
+      - tts_cache:/app/storage/tts_cache
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  telegram-bot:
+    build: ./backend
+    command: ["python", "-m", "app.bot.main"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kidsedu:kidsedu@postgres:5432/kidsedu
+    volumes:
+      - video_storage:/app/storage/videos
+      - tts_cache:/app/storage/tts_cache
+
+volumes:
+  postgres_data:
+  video_storage:
+  tts_cache:
