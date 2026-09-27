@@ -16,5 +16,10 @@ class Settings(BaseSettings):
 
     ingestor_interval_hours: int = 12
 
+    # Общий пароль родительской панели (frontend-admin). Пустая строка
+    # отключает проверку — удобно для локальной разработки, но ОБЯЗАТЕЛЬНО
+    # должен быть задан в проде (см. CLAUDE.md).
+    admin_dashboard_password: str = ""
+
 
 settings = Settings()

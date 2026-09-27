@@ -152,10 +152,17 @@ Galaxy S20+ в защищённом режиме киоска (Kiosk Mode).
    проигрывается мягкий анимационный эффект и начисляются звёздочки. При
    ошибке подсвечивается верный вариант без негативных штрафов.
 
-### Модуль 4 — Родительский контроль и аналитика (`app/bot/` & `frontend/src/pages/ParentAdmin.tsx`)
+### Модуль 4 — Родительский контроль и аналитика (`app/bot/` & `frontend-admin/`)
 
-1. **Дашборд**: просмотр общего времени просмотра, списка изученных
-   навыков, точности ответов на квизы.
+1. **Веб-дашборд** (`frontend-admin/` — отдельный устанавливаемый PWA,
+   не тот же плеер, что у детей): список профилей со сводкой (минуты
+   сегодня/за неделю, точность квизов, текущая тема), детальная
+   страница профиля (чарт минут за 7 дней, история просмотров),
+   управление белым списком каналов, обзор модерации видео
+   (одобрить/заблокировать). Защищён общим паролем родителей
+   (`ADMIN_DASHBOARD_PASSWORD`, `POST /admin/auth/login` +
+   `Authorization: Bearer`) — `GET /admin/children` остаётся публичным,
+   так как им пользуется детский киоск-плеер.
 2. **Telegram-управление**:
    - `/status` — текущий статус профилей и время просмотра за сегодня.
    - `/add_channel <platform> <id> [возраст] [название]` — добавить канал
@@ -218,7 +225,23 @@ kid/
 │       └── bot/                  # Telegram-бот (aiogram 3.x)
 │           ├── main.py
 │           └── handlers.py
-└── frontend/                     # React PWA (Этап 3)
+├── frontend-admin/                # Родительская веб-панель (отдельный PWA)
+│   ├── Dockerfile / nginx.conf
+│   ├── vite.config.ts             # свой манифест: другое имя/иконка при установке
+│   └── src/
+│       ├── App.tsx                 # /login, /, /children/:id, /channels, /videos
+│       ├── api/client.ts           # + хранение токена, Authorization: Bearer
+│       ├── components/
+│       │   ├── WatchMinutesChart.tsx  # чарт минут/день (dataviz skill)
+│       │   ├── StatTile.tsx
+│       │   └── RequireAuth.tsx / Nav.tsx
+│       └── pages/
+│           ├── Login.tsx
+│           ├── Dashboard.tsx
+│           ├── ChildDetail.tsx
+│           ├── Channels.tsx
+│           └── Videos.tsx
+└── frontend/                     # Детский киоск-плеер PWA (Этап 3)
     ├── Dockerfile                 # multi-stage build + nginx (SPA try_files)
     ├── nginx.conf
     ├── vite.config.ts             # @tailwindcss/vite + vite-plugin-pwa

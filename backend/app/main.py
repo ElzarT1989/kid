@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.admin import router as admin_router
+from app.api.auth import router as auth_router
 from app.api.player import router as player_router
 from app.config import settings
 from app.database import init_models
@@ -19,10 +20,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="KidsEdu AI", lifespan=lifespan)
 
-# Детский плеер (PWA) обращается к backend с другого origin (Vite dev server
-# в разработке, отдельный домен/порт в проде) — CORS открыт полностью, так
-# как API не содержит аутентификации и не рассчитан на публичный доступ
-# (устройство работает в изолированной локальной сети/kiosk-режиме).
+# Детский плеер и родительская панель (PWA) обращаются к backend с другого
+# origin (Vite dev server в разработке, отдельные Railway-домены в проде) —
+# CORS открыт полностью. Чувствительные /admin/* эндпоинты защищены общим
+# паролем родительской панели (Authorization: Bearer, см. app/api/auth.py),
+# так что открытый CORS сам по себе не даёт доступа без пароля.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,6 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(player_router)
 
