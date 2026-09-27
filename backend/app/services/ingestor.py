@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.database import ChannelSource, PlatformEnum, QuizQuestion, VideoItem
-from app.services import moderator
+from app.services import moderator, tts
 
 logger = logging.getLogger(__name__)
 
@@ -243,14 +243,21 @@ async def _moderate_and_finalize(db: AsyncSession, video: VideoItem) -> None:
     video.local_video_path = local_path
 
     for quiz in text_result.quizzes:
-        db.add(
-            QuizQuestion(
-                video_id=video.id,
-                question_text=quiz.question_voice_text,
-                options_json=[option.model_dump() for option in quiz.options],
-                correct_option_index=quiz.correct_option_index,
-            )
+        quiz_question = QuizQuestion(
+            video_id=video.id,
+            question_text=quiz.question_voice_text,
+            options_json=[option.model_dump() for option in quiz.options],
+            correct_option_index=quiz.correct_option_index,
         )
+        db.add(quiz_question)
+        await db.flush()  # нужен id квиза для имени .mp3 файла
+
+        try:
+            quiz_question.audio_tts_path = await tts.synthesize_question_audio(
+                quiz_question.question_text, quiz_question.id, video.age_group
+            )
+        except Exception:
+            logger.exception("Не удалось синтезировать TTS для квиза %s — квиз сохранён без аудио", quiz_question.id)
 
 
 async def process_channel(db: AsyncSession, channel: ChannelSource, limit: int = MAX_NEW_VIDEOS_PER_CHANNEL) -> int:
