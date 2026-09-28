@@ -80,24 +80,45 @@ def _options_hint(target_age: int) -> str:
 # терпеливая обёртка поверх встроенного ретрая SDK.
 _RETRY_DELAYS_SEC = (0, 5, 15, 30)
 
+# Free tier gemini-3.8-flash: лимит 5 запросов/мин и 20/день на проект
+# (google.genai.errors.ClientError 429 RESOURCE_EXHAUSTED). Несколько
+# параллельных фоновых задач (пара кликов "Повторить модерацию" подряд,
+# или обычный обход канала) иначе бьют в Gemini одновременно и сжигают
+# дневную квоту за секунды вместо того, чтобы растянуть те же 5
+# запросов на минуту — см. логи Этапа 2: несколько 429 подряд в одну
+# секунду. Лок + минимальный интервал между вызовами сериализует все
+# обращения к Gemini в рамках процесса (и текстовый, и визуальный слой).
+_gemini_lock = asyncio.Lock()
+_last_gemini_call_at = 0.0
+_MIN_GEMINI_INTERVAL_SEC = 13.0  # 5/мин = 12 сек/запрос, +1 сек запаса
+
 
 async def _generate_content_with_retry(**kwargs) -> types.GenerateContentResponse:
+    global _last_gemini_call_at
     client = _get_client()
     last_error: genai_errors.ServerError | None = None
     for attempt, delay in enumerate(_RETRY_DELAYS_SEC, start=1):
         if delay:
             await asyncio.sleep(delay)
-        try:
-            return await asyncio.to_thread(client.models.generate_content, **kwargs)
-        except genai_errors.ServerError as exc:
-            last_error = exc
-            logger.warning(
-                "Gemini %s временно недоступна (попытка %d/%d): %s",
-                kwargs.get("model"),
-                attempt,
-                len(_RETRY_DELAYS_SEC),
-                exc,
-            )
+        async with _gemini_lock:
+            wait = _MIN_GEMINI_INTERVAL_SEC - (asyncio.get_event_loop().time() - _last_gemini_call_at)
+            if wait > 0:
+                await asyncio.sleep(wait)
+            try:
+                response = await asyncio.to_thread(client.models.generate_content, **kwargs)
+            except genai_errors.ServerError as exc:
+                last_error = exc
+                logger.warning(
+                    "Gemini %s временно недоступна (попытка %d/%d): %s",
+                    kwargs.get("model"),
+                    attempt,
+                    len(_RETRY_DELAYS_SEC),
+                    exc,
+                )
+                continue
+            finally:
+                _last_gemini_call_at = asyncio.get_event_loop().time()
+            return response
     assert last_error is not None
     raise last_error
 
