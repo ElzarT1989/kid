@@ -302,6 +302,22 @@ async def _moderate_and_finalize(db: AsyncSession, video: VideoItem) -> None:
             logger.exception("Не удалось синтезировать TTS для квиза %s — квиз сохранён без аудио", quiz_question.id)
 
 
+async def retry_moderation(db: AsyncSession, video: VideoItem) -> None:
+    """Повторно прогоняет модерацию уже существующей записи VideoItem.
+
+    Нужно для видео, отклонённых из-за бага в самом пайплайне (а не по
+    содержанию) — например, партия видео, упавшая на ValidationError из-за
+    старой версии google-genai (см. CLAUDE.md/логи Этапа 2): после фикса
+    кода эти записи так и остаются is_approved=False навсегда, потому что
+    process_channel пропускает external_id, уже присутствующие в БД, и
+    повторная ингестия канала их не подхватит.
+    """
+    video.is_approved = False
+    video.rejection_reason = None
+    await _moderate_and_finalize(db, video)
+    await db.commit()
+
+
 async def process_channel(db: AsyncSession, channel: ChannelSource, limit: int = MAX_NEW_VIDEOS_PER_CHANNEL) -> int:
     """Обрабатывает один канал: новые видео -> модерация. Возвращает число обработанных."""
     target_age = channel.target_age_group or 5

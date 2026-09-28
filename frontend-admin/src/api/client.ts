@@ -140,6 +140,12 @@ export function moderateVideo(
   })
 }
 
+export function retryModeration(videoId: number): Promise<{ status: string; video_id: number }> {
+  return request<{ status: string; video_id: number }>(`/admin/videos/${videoId}/retry-moderation`, {
+    method: 'POST',
+  })
+}
+
 export function getSystemStatus(): Promise<SystemStatus> {
   return request<SystemStatus>('/admin/system-status')
 }

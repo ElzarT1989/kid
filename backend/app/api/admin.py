@@ -28,6 +28,7 @@ from app.schemas.admin import (
     CurrentTopicOut,
     DailyStatOut,
     IngestRunOut,
+    RetryModerationOut,
     SystemStatusOut,
     VideoModerationPatch,
     VideoSummaryOut,
@@ -303,6 +304,44 @@ async def moderate_video(
         duration_sec=video.duration_sec,
         channel_name=video.channel.channel_name if video.channel else None,
     )
+
+
+async def _retry_moderation_background(video_id: int) -> None:
+    async with async_session_maker() as db:
+        try:
+            video = await db.get(VideoItem, video_id)
+            if video is None:
+                logger.error("Повтор модерации: видео %s не найдено", video_id)
+                return
+            await ingestor.retry_moderation(db, video)
+            logger.info("Повтор модерации видео %s завершён: is_approved=%s", video_id, video.is_approved)
+        except Exception:
+            logger.exception("Повтор модерации видео %s упал с ошибкой", video_id)
+
+
+@router.post(
+    "/videos/{video_id}/retry-moderation",
+    response_model=RetryModerationOut,
+    dependencies=[Depends(require_parent_auth)],
+)
+async def retry_video_moderation(
+    video_id: int, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)
+) -> RetryModerationOut:
+    """Повторяет модерацию отклонённого видео (например, после фикса бага в
+    самом пайплайне модерации — см. ingestor.retry_moderation). В фоне, как
+    и /ingest/run: скачивание видео + два вызова Gemini могут занимать минуты.
+    """
+    video = await db.get(VideoItem, video_id)
+    if video is None:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if not settings.gemini_api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="GEMINI_API_KEY не настроен на сервере — модерация видео невозможна.",
+        )
+
+    background_tasks.add_task(_retry_moderation_background, video_id)
+    return RetryModerationOut(status="started", video_id=video_id)
 
 
 @router.get(

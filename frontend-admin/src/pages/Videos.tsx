@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getVideos, moderateVideo } from '../api/client'
+import { getVideos, moderateVideo, retryModeration } from '../api/client'
 import type { VideoSummary } from '../types'
 
 type FilterValue = 'all' | 'approved' | 'rejected'
@@ -8,6 +8,7 @@ export default function Videos() {
   const [videos, setVideos] = useState<VideoSummary[]>([])
   const [filter, setFilter] = useState<FilterValue>('all')
   const [loading, setLoading] = useState(true)
+  const [retryingIds, setRetryingIds] = useState<Set<number>>(new Set())
 
   const load = (value: FilterValue) => {
     setLoading(true)
@@ -24,6 +25,22 @@ export default function Videos() {
       rejection_reason: video.is_approved ? 'Заблокировано родителем через веб-панель' : null,
     })
     load(filter)
+  }
+
+  const handleRetry = async (video: VideoSummary) => {
+    setRetryingIds((prev) => new Set(prev).add(video.id))
+    await retryModeration(video.id)
+    // Модерация идёт в фоне (скачивание видео + 2 вызова Gemini — до минуты),
+    // поэтому просто перезагружаем список через паузу вместо немедленного
+    // ответа с результатом.
+    setTimeout(() => {
+      setRetryingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(video.id)
+        return next
+      })
+      load(filter)
+    }, 20000)
   }
 
   return (
@@ -82,15 +99,27 @@ export default function Videos() {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => handleToggle(video)}
-                  className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-white"
-                  style={{
-                    background: video.is_approved ? 'var(--status-critical)' : 'var(--status-good)',
-                  }}
-                >
-                  {video.is_approved ? 'Заблокировать' : 'Одобрить'}
-                </button>
+                <div className="flex flex-col items-end gap-1">
+                  <button
+                    onClick={() => handleToggle(video)}
+                    className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-white"
+                    style={{
+                      background: video.is_approved ? 'var(--status-critical)' : 'var(--status-good)',
+                    }}
+                  >
+                    {video.is_approved ? 'Заблокировать' : 'Одобрить'}
+                  </button>
+                  {!video.is_approved && (
+                    <button
+                      onClick={() => handleRetry(video)}
+                      disabled={retryingIds.has(video.id)}
+                      className="whitespace-nowrap rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50"
+                      style={{ borderColor: 'var(--gridline)', color: 'var(--text-primary)' }}
+                    >
+                      {retryingIds.has(video.id) ? 'Проверяю снова…' : 'Повторить модерацию'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

@@ -119,3 +119,8 @@ class SystemStatusOut(BaseModel):
 class IngestRunOut(BaseModel):
     status: str
     channels_count: int
+
+
+class RetryModerationOut(BaseModel):
+    status: str
+    video_id: int
