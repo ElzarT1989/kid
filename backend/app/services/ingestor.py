@@ -73,6 +73,17 @@ class _YtDlpLogger:
         logger.error("yt-dlp: %s", msg)
 
 
+# extract_flat (список видео канала) отрабатывает и без этого — не требует
+# полного "player"-ответа. А вот полная выдача метаданных ролика (формат,
+# субтитры) с дефолтным клиентом "web" на дата-центровском IP (Railway)
+# упирается в PO Token-проверку YouTube и возвращает "This video is not
+# available" для абсолютно всех видео подряд, даже реально доступных —
+# признак блокировки по клиенту/IP, а не по конкретному ролику. Клиент "tv"
+# (для смарт-ТВ-приложений) на момент написания не требует PO Token.
+# Не проверено вживую: youtube.com недоступен из песочницы разработки.
+_YOUTUBE_EXTRACTOR_ARGS = {"extractor_args": {"youtube": {"player_client": ["tv", "web"]}}}
+
+
 def _fetch_channel_video_ids_sync(channel: ChannelSource, limit: int) -> list[str]:
     url = _channel_url(channel)
     ydl_opts = {
@@ -100,6 +111,7 @@ def _fetch_video_metadata_sync(platform: PlatformEnum, external_id: str) -> dict
         "subtitleslangs": [SUBTITLE_LANG],
         "quiet": True,
         "no_warnings": True,
+        **_YOUTUBE_EXTRACTOR_ARGS,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         return ydl.extract_info(_video_url(platform, external_id), download=False)
@@ -174,6 +186,7 @@ def _download_video_file_sync(platform: PlatformEnum, external_id: str, dest_dir
         "postprocessor_args": {"default": ["-movflags", "+faststart"]},
         "quiet": True,
         "no_warnings": True,
+        **_YOUTUBE_EXTRACTOR_ARGS,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([_video_url(platform, external_id)])
