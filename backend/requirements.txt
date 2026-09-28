@@ -5,10 +5,13 @@ asyncpg==0.29.0
 aiosqlite==0.20.0
 pydantic==2.9.2
 pydantic-settings==2.5.2
-# Без строгого пина: YouTube часто меняет разметку, и старый yt-dlp молча
-# возвращает пустой список видео вместо ошибки (см. CLAUDE.md/логи Этапа 2) —
-# при пересборке образа всегда подтягивается актуальная версия.
-yt-dlp
+# Ставим прямо из GitHub master, а не с PyPI: YouTube ломает разметку/API
+# чаще, чем yt-dlp успевает релизиться на PyPI (последний PyPI-релиз на
+# момент этой правки — 2026.8.19, полтора месяца до сегодняшнего дня — уже
+# ловил "The page needs to be reloaded" на всех видео подряд, см. логи
+# Этапа 2). Автор проекта именно так и рекомендует чинить сломанные
+# экстракторы до выхода релиза: https://github.com/yt-dlp/yt-dlp#update.
+yt-dlp @ https://github.com/yt-dlp/yt-dlp/archive/refs/heads/master.tar.gz
 google-genai==0.3.0
 edge-tts==6.1.14
 aiogram==3.13.1
