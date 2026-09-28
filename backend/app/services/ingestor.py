@@ -55,16 +55,36 @@ def _video_url(platform: PlatformEnum, external_id: str) -> str:
     raise ValueError(f"Неподдерживаемая платформа: {platform}")
 
 
+class _YtDlpLogger:
+    """quiet=True/no_warnings=True глушат вывод yt-dlp в stdout/stderr —
+    без этого перехватчика причина "0 видео" (неверный URL канала,
+    географическая блокировка, устаревший yt-dlp и т.п.) нигде не видна."""
+
+    def debug(self, msg: str) -> None:
+        pass
+
+    def info(self, msg: str) -> None:
+        pass
+
+    def warning(self, msg: str) -> None:
+        logger.warning("yt-dlp: %s", msg)
+
+    def error(self, msg: str) -> None:
+        logger.error("yt-dlp: %s", msg)
+
+
 def _fetch_channel_video_ids_sync(channel: ChannelSource, limit: int) -> list[str]:
+    url = _channel_url(channel)
     ydl_opts = {
         "extract_flat": True,
         "playlistend": limit,
         "quiet": True,
-        "no_warnings": True,
+        "logger": _YtDlpLogger(),
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(_channel_url(channel), download=False)
+        info = ydl.extract_info(url, download=False)
     entries = (info or {}).get("entries") or []
+    logger.info("yt-dlp URL %s -> %d entries (тип верхнего уровня: %s)", url, len(entries), (info or {}).get("_type"))
     return [entry["id"] for entry in entries if entry.get("id")]
 
 
