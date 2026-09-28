@@ -26,8 +26,12 @@ from app.schemas.moderation import VideoModerationResultSchema, VisualModeration
 
 logger = logging.getLogger(__name__)
 
-TEXT_MODEL = "gemini-2.5-flash"
-VISION_MODEL = "gemini-2.5-flash"
+# gemini-2.5-flash больше не существует для новых проектов — Gemini API
+# отвечал 404 с прямой рекомендацией переключиться на gemini-3.8-flash
+# (см. логи Этапа 2). Модель мультимодальная — годится и для текстового,
+# и для визуального слоя модерации.
+TEXT_MODEL = "gemini-3.8-flash"
+VISION_MODEL = "gemini-3.8-flash"
 FRAME_SAMPLE_COUNT = 6
 
 _client: genai.Client | None = None
