@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,6 +11,13 @@ from app.api.auth import router as auth_router
 from app.api.player import router as player_router
 from app.config import settings
 from app.database import init_models
+
+# Без этого logger.info/logger.exception в наших модулях (ingestor.py,
+# moderator.py, api/admin.py) уходят в никуда: uvicorn настраивает
+# обработчики только для СВОИХ логгеров ("uvicorn", "uvicorn.access"),
+# а не для root — без basicConfig фоновая ингестия отрабатывала молча,
+# без единого следа даже при ошибке.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
 @asynccontextmanager

@@ -334,6 +334,7 @@ async def get_system_status(db: AsyncSession = Depends(get_db)) -> SystemStatusO
 
 
 async def _run_ingestion_background() -> None:
+    logger.info("Фоновый цикл ингестии запущен")
     async with async_session_maker() as db:
         try:
             stats = await ingestor.run_ingestion_cycle(db)

@@ -269,12 +269,14 @@ async def process_channel(db: AsyncSession, channel: ChannelSource, limit: int =
     """Обрабатывает один канал: новые видео -> модерация. Возвращает число обработанных."""
     target_age = channel.target_age_group or 5
 
+    label = channel.channel_name or channel.external_id
     try:
         video_ids = await fetch_channel_video_ids(channel, limit)
     except Exception:
-        logger.exception("Не удалось получить список видео канала %s", channel.channel_name or channel.external_id)
+        logger.exception("Не удалось получить список видео канала %s", label)
         return 0
 
+    logger.info("Канал %s: yt-dlp вернул %d видео", label, len(video_ids))
     if not video_ids:
         return 0
 
@@ -283,6 +285,7 @@ async def process_channel(db: AsyncSession, channel: ChannelSource, limit: int =
     )
     existing_ids = {row[0] for row in existing_result.all()}
     new_ids = [vid for vid in video_ids if vid not in existing_ids]
+    logger.info("Канал %s: %d новых видео (уже в базе: %d)", label, len(new_ids), len(existing_ids))
 
     processed = 0
     for external_id in new_ids:
