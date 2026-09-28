@@ -1,5 +1,3 @@
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
 
@@ -29,7 +27,13 @@ class VideoModerationResultSchema(BaseModel):
         default=None, description="Причина отклонения, если is_approved = False"
     )
     educational_score: int = Field(ge=1, le=10, description="Оценка обучающей ценности ролика")
-    target_age: Literal[2, 5] = Field(description="Целевой возраст ребенка")
+    # Не Literal[2, 5]: Gemini structured output требует, чтобы значения enum
+    # были строками (google.genai.types.Schema.enum: list[str]) — int-овый
+    # Literal ломает конвертацию Pydantic-схемы в Gemini Schema с ошибкой
+    # "Input should be a valid string" (см. логи Этапа 2). Значение всё равно
+    # нигде не читается ниже по пайплайну (video.age_group берётся из
+    # channel.target_age_group), достаточно диапазона.
+    target_age: int = Field(ge=2, le=5, description="Целевой возраст ребенка (2 или 5 лет)")
     topics: list[str] = Field(description="Ключевые темы и навыки, затрагиваемые в видео")
     summary: str = Field(description="Краткий сжатый пересказ сюжета ролика")
     quizzes: list[GeneratedQuizSchema] = Field(

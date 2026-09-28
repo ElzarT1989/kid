@@ -3,7 +3,10 @@ uvicorn[standard]==0.30.6
 sqlalchemy[asyncio]==2.0.35
 asyncpg==0.29.0
 aiosqlite==0.20.0
-pydantic==2.9.2
+# pydantic поднят с 2.9.2 до 2.13.5 — требование google-genai>=2.25.0
+# (pydantic>=2.12.5). aiogram ниже поднят синхронно, т.к. 3.13.1 требовал
+# pydantic<2.10 и конфликтовал бы с этим пином.
+pydantic==2.13.5
 pydantic-settings==2.5.2
 # Ставим прямо из GitHub master, а не с PyPI: YouTube ломает разметку/API
 # чаще, чем yt-dlp успевает релизиться на PyPI (последний PyPI-релиз на
@@ -12,8 +15,15 @@ pydantic-settings==2.5.2
 # Этапа 2). Автор проекта именно так и рекомендует чинить сломанные
 # экстракторы до выхода релиза: https://github.com/yt-dlp/yt-dlp#update.
 yt-dlp @ https://github.com/yt-dlp/yt-dlp/archive/refs/heads/master.tar.gz
-google-genai==0.3.0
+# 0.3.0 — одна из первых preview-версий SDK (текущая GA — 2.x): её
+# конвертация Pydantic-схемы в Gemini Schema не умеет разворачивать
+# вложенные модели ($ref/$defs) и Optional-поля (JSON Schema "type: null"),
+# из-за чего moderate_transcript падал на КАЖДОМ видео с ValidationError
+# (см. логи Этапа 2, после починки yt-dlp). В 2.25.0 это уже работает.
+google-genai==2.25.0
 edge-tts==6.1.14
-aiogram==3.13.1
+# 3.31.0, а не 3.13.1: старая версия требует pydantic<2.10, что
+# конфликтует с пином pydantic==2.13.5 выше (нужен для google-genai).
+aiogram==3.31.0
 apscheduler==3.10.4
 python-dotenv==1.0.1
