@@ -19,6 +19,7 @@ import tempfile
 from pathlib import Path
 
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from app.config import settings
@@ -71,16 +72,44 @@ def _options_hint(target_age: int) -> str:
     return "2 варианта" if target_age <= 3 else "3-4 варианта"
 
 
-async def moderate_transcript(transcript: str, target_age: int) -> VideoModerationResultSchema:
+# 503 "This model is currently experiencing high demand" от Gemini
+# встречался стабильно на каждой попытке при первом запуске после смены
+# модели на gemini-3.8-flash (см. логи Этапа 2) — SDK сам ретраит
+# ServerError через tenacity, но всего пару раз за секунды, чего мало для
+# "спайка", который Google сам называет временным. Добавлена более
+# терпеливая обёртка поверх встроенного ретрая SDK.
+_RETRY_DELAYS_SEC = (0, 5, 15, 30)
+
+
+async def _generate_content_with_retry(**kwargs) -> types.GenerateContentResponse:
     client = _get_client()
+    last_error: genai_errors.ServerError | None = None
+    for attempt, delay in enumerate(_RETRY_DELAYS_SEC, start=1):
+        if delay:
+            await asyncio.sleep(delay)
+        try:
+            return await asyncio.to_thread(client.models.generate_content, **kwargs)
+        except genai_errors.ServerError as exc:
+            last_error = exc
+            logger.warning(
+                "Gemini %s временно недоступна (попытка %d/%d): %s",
+                kwargs.get("model"),
+                attempt,
+                len(_RETRY_DELAYS_SEC),
+                exc,
+            )
+    assert last_error is not None
+    raise last_error
+
+
+async def moderate_transcript(transcript: str, target_age: int) -> VideoModerationResultSchema:
     prompt = TEXT_MODERATION_PROMPT.format(
         target_age=target_age,
         transcript=transcript[:15000],
         options_hint=_options_hint(target_age),
     )
 
-    response = await asyncio.to_thread(
-        client.models.generate_content,
+    response = await _generate_content_with_retry(
         model=TEXT_MODEL,
         contents=prompt,
         config=types.GenerateContentConfig(
@@ -141,12 +170,10 @@ async def moderate_visual(video_local_path: str) -> VisualModerationResultSchema
     if not frames:
         raise RuntimeError(f"Не удалось извлечь кадры из {video_local_path}")
 
-    client = _get_client()
     parts: list[types.Part] = [types.Part.from_bytes(data=frame, mime_type="image/jpeg") for frame in frames]
     parts.append(types.Part.from_text(text=VISUAL_MODERATION_PROMPT))
 
-    response = await asyncio.to_thread(
-        client.models.generate_content,
+    response = await _generate_content_with_retry(
         model=VISION_MODEL,
         contents=parts,
         config=types.GenerateContentConfig(
