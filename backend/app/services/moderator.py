@@ -72,13 +72,13 @@ def _options_hint(target_age: int) -> str:
     return "2 варианта" if target_age <= 3 else "3-4 варианта"
 
 
-# 503 "This model is currently experiencing high demand" от Gemini
-# встречался стабильно на каждой попытке при первом запуске после смены
-# модели на gemini-3.8-flash (см. логи Этапа 2) — SDK сам ретраит
-# ServerError через tenacity, но всего пару раз за секунды, чего мало для
-# "спайка", который Google сам называет временным. Добавлена более
-# терпеливая обёртка поверх встроенного ретрая SDK.
-_RETRY_DELAYS_SEC = (0, 5, 15, 30)
+# 503 "This model is currently experiencing high demand" от Gemini —
+# встречается волнами (после включения биллинга видно, что часть
+# запросов проходит успешно, часть валится 503 несколько минут подряд,
+# см. логи Этапа 2). SDK сам ретраит ServerError через tenacity, но
+# всего пару раз за секунды. 503 не расходует квоту (в отличие от 429),
+# поэтому можно позволить себе более широкое окно ретрая.
+_RETRY_DELAYS_SEC = (0, 10, 20, 40, 60)
 
 # Free tier gemini-3.8-flash: лимит 5 запросов/мин и 20/день на проект
 # (google.genai.errors.ClientError 429 RESOURCE_EXHAUSTED). Несколько

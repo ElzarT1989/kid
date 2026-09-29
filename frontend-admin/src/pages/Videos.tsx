@@ -30,9 +30,10 @@ export default function Videos() {
   const handleRetry = async (video: VideoSummary) => {
     setRetryingIds((prev) => new Set(prev).add(video.id))
     await retryModeration(video.id)
-    // Модерация идёт в фоне (скачивание видео + 2 вызова Gemini — до минуты),
-    // поэтому просто перезагружаем список через паузу вместо немедленного
-    // ответа с результатом.
+    // Модерация идёт в фоне: скачивание видео + до 2 запросов к Gemini,
+    // каждый с ретраем на 503 "высокая нагрузка" до ~2 минут (не тратит
+    // квоту, поэтому окно широкое) — просто перезагружаем список через
+    // паузу вместо немедленного ответа с результатом.
     setTimeout(() => {
       setRetryingIds((prev) => {
         const next = new Set(prev)
@@ -40,7 +41,7 @@ export default function Videos() {
         return next
       })
       load(filter)
-    }, 20000)
+    }, 90000)
   }
 
   return (
